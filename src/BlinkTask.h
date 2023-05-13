@@ -15,9 +15,8 @@ class BlinkTask : public PeriodicTask
 
 public:
     BlinkTask();
-    void init(uint8 pin);
-
-    void setBlinkMode(bool fast);
+    void init(uint8 ledPin);
+    void stop();
 
 protected:
     virtual void timerCallback();

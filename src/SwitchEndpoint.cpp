@@ -7,6 +7,7 @@
 #include "ButtonsTask.h"
 #include "PdmIds.h"
 
+
 extern "C"
 {
     #include "dbg.h"
@@ -19,11 +20,29 @@ SwitchEndpoint::SwitchEndpoint()
 {
 }
 
-void SwitchEndpoint::setPins(uint8 ledPin, uint32 pinMask)
+#ifdef NWK_BTN
+void SwitchEndpoint::setPins(uint8 ledPin1, uint32 pinMask1, uint32 pinMask2)
+#else
+void SwitchEndpoint::setPins(uint8 ledPin1, uint32 pinMask1)
+#endif
 {
-    blinkTask.init(ledPin);
+    // blinkTask.init(ledPin);
 
-    ButtonsTask::getInstance()->registerHandler(pinMask, &buttonHandler);
+    ledPin = ledPin1;
+
+    uint32 ledPinMask = 1UL << ledPin;
+    vAHI_DioSetDirection(0, ledPinMask);
+    vAHI_DioSetOutput(ledPinMask, 0);
+    #ifdef LED2
+    uint8 ledPin2 = ledPin1 + 1;
+    uint32 ledPinMask2 = 1UL << ledPin2;
+    vAHI_DioSetDirection(0, ledPinMask2);
+    vAHI_DioSetOutput(ledPinMask2, 0);
+    #endif
+    ButtonsTask::getInstance()->registerHandler(pinMask1, ledPin, &buttonHandler);
+    #ifdef NWK_BTN
+        ButtonsTask::getInstance()->registerHandler(pinMask2, ledPin, &nwkBtnHandler);
+    #endif
 }
 
 void SwitchEndpoint::registerServerCluster()
@@ -147,10 +166,11 @@ void SwitchEndpoint::init()
     // Note: this blinking task represents a relay that would be tied with this switch. That is why blinkTask
     // is a property of SwitchEndpoint, and not the global task object
     // TODO: restore previous blink mode from PDM
-    blinkTask.setBlinkMode(false);
+    // blinkTask.setBlinkMode(false);
 
     // Let button handler know about this Endpoint instanct so that it can properly report new states
     buttonHandler.setEndpoint(this);
+    // nwkBtnHandler.setEndpoint(this);
 }
 
 bool SwitchEndpoint::getState() const
@@ -198,7 +218,7 @@ void SwitchEndpoint::doStateChange(bool state)
     if(runsInServerMode())
     {
         sOnOffServerCluster.bOnOff = state ? TRUE : FALSE;
-        blinkTask.setBlinkMode(state);
+        // blinkTask.setBlinkMode(state);
     }
 }
 
@@ -212,14 +232,16 @@ void SwitchEndpoint::reportState()
     // Send the report
     DBG_vPrintf(TRUE, "Reporting attribute EP=%d value=%d... ", getEndpointId(), sOnOffServerCluster.bOnOff);
     PDUM_thAPduInstance myPDUM_thAPduInstance = hZCL_AllocateAPduInstance();
-    teZCL_Status status = eZCL_ReportAttribute(&addr,
+    
+    teZCL_Status status1 = eZCL_ReportAttribute(&addr,
                                                GENERAL_CLUSTER_ID_ONOFF,
                                                E_CLD_ONOFF_ATTR_ID_ONOFF,
                                                getEndpointId(),
                                                1,
-                                               myPDUM_thAPduInstance);
+                                               myPDUM_thAPduInstance);    
+
     PDUM_eAPduFreeAPduInstance(myPDUM_thAPduInstance);
-    DBG_vPrintf(TRUE, "status: %02x\n", status);
+    DBG_vPrintf(TRUE, "status1: %02x\n", status1);
 }
 
 void SwitchEndpoint::sendCommandToBoundDevices()

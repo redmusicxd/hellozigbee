@@ -1,0 +1,15 @@
+{
+  "cmake.configureOnOpen": true,
+  "files.associations": {
+    "*.js": "javascript",
+    "jendefs.h": "c",
+    "stdint.h": "c",
+    "libc-header-start.h": "c",
+    "zcl.h": "c",
+    "zps_apl_af.h": "c",
+    "zcl_heap.h": "c",
+    "zps_apl.h": "c",
+    "microspecific.h": "c",
+    "zcl_customcommand.h": "c"
+  }
+}

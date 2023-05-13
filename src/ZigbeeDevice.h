@@ -5,6 +5,7 @@
 #include "PdmIds.h"
 #include "PollTask.h"
 #include "Queue.h"
+#include "PowerConfiguration.h"
 
 extern "C"
 {
@@ -31,6 +32,9 @@ class ZigbeeDevice
     int rejoinFailures;
     int cyclesTillNextRejoin;
 
+    tsCLD_PowerConfiguration *sPowerConfigServerCluster;
+
+public:
     ZigbeeDevice();
 
 public:
@@ -41,11 +45,14 @@ public:
     void leaveNetwork();
     void joinOrLeaveNetwork();
     bool isJoined();
+    bool isLeft();
 
     void pollParent();
+    void pwrCfg(tsCLD_PowerConfiguration *);
     bool canSleep() const;
     bool needsRejoin() const;
     void handleWakeUp();
+    void reportBattery();
 
 protected:
     void handleNetworkJoinAndRejoin();

@@ -3,6 +3,9 @@
 
 #include "PeriodicTask.h"
 #include "Queue.h"
+#ifndef NWK_BTN
+#include "BlinkTask.h"
+#endif
 
 extern "C"
 {
@@ -15,6 +18,7 @@ class IButtonHandler;
 struct HandlerRecord
 {
     uint32 pinMask;
+    uint32 ledPin;
     IButtonHandler * handler;
 };
 
@@ -27,6 +31,10 @@ class ButtonsTask : public PeriodicTask
     uint8 numHandlers;
     uint32 buttonsMask;
 
+    #ifndef NWK_BTN
+        BlinkTask blinktask;
+    #endif
+
 public:
     ButtonsTask();
 
@@ -35,7 +43,7 @@ public:
     bool handleDioInterrupt(uint32 dioStatus);
     bool canSleep() const;
 
-    void registerHandler(uint32 pinMask, IButtonHandler * handler);
+    void registerHandler(uint32 pinMask, uint32 ledPin, IButtonHandler * handler);
 
 protected:
     virtual void timerCallback();

@@ -1,4 +1,5 @@
 #include "BlinkTask.h"
+#include "ZigbeeDevice.h"
 
 extern "C"
 {
@@ -20,16 +21,28 @@ void BlinkTask::init(uint8 pin)
 {
     ledPin.init(pin);
 
-    PeriodicTask::init(SLOW_BLINK_PERIOD);
-    startTimer(1000);
+    PeriodicTask::init();
+    startTimer(200);
 }
 
-void BlinkTask::setBlinkMode(bool fast)
-{
-    setPeriod(fast ? FAST_BLINK_PERIOD : SLOW_BLINK_PERIOD);
+void BlinkTask::stop(){
+    stopTimer();
 }
 
 void BlinkTask::timerCallback()
 {
+    // toggle LED
     ledPin.toggle();
+
+    if(ZigbeeDevice::getInstance()->isJoined()){
+        stopTimer();
+        ledPin.off();
+    }
+    if(ZigbeeDevice::getInstance()->isLeft()){
+        stopTimer();
+        ledPin.off();
+    }
+
+    //Restart the timer
+    startTimer(FAST_BLINK_PERIOD);
 }

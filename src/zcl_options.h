@@ -83,6 +83,12 @@
 #define ONOFF_CLIENT
 #define ONOFF_SERVER
 
+#define CLD_POWER_CONFIGURATION
+#define POWER_CONFIGURATION_SERVER
+#define CLD_PWRCFG_ATTR_BATTERY_VOLTAGE
+#define CLD_PWRCFG_ATTR_BATTERY_PERCENTAGE_REMAINING
+#define CLD_PWRCFG_ATTR_BATTERY_RATED_VOLTAGE
+
 #define CLD_OOSC
 #define OOSC_SERVER
 
@@ -134,10 +140,10 @@
 #define CLD_BAS_MANUF_NAME_SIZE     3
 #define CLD_BAS_MODEL_ID_STR        "Hello Zigbee Switch"
 #define CLD_BAS_MODEL_ID_SIZE       19
-#define CLD_BAS_DATE_STR            "20210331"
+#define CLD_BAS_DATE_STR            "20220917"
 #define CLD_BAS_DATE_SIZE           8
 #define CLD_BAS_POWER_SOURCE        E_CLD_BAS_PS_BATTERY
-#define CLD_BAS_SW_BUILD_STR        "v0.1"
+#define CLD_BAS_SW_BUILD_STR        "v0.4"
 #define CLD_BAS_SW_BUILD_SIZE       4
 #define CLD_BAS_DEVICE_CLASS        (0)
 

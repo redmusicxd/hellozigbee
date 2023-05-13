@@ -3,8 +3,13 @@
 
 ADD_DEFINITIONS(
         -DOTA_INTERNAL_STORAGE
+
+        -DNWK_BTN
+        # -DBLINK_SWITCH_LED
+        # -DLED2
+
 #        -DTRACE_ZCL=TRUE
-        -DTRACE_OTA_DEBUG=TRUE
+        # -DTRACE_OTA_DEBUG=TRUE
 #        -DDEBUG_BDB
 #        -DDEBUG_CLD_ONOFF
 #        -DDEBUG_ZQUEUE
@@ -55,6 +60,7 @@ SET(ZIGBEE_SRC
 
         ${SDK_PREFIX}/Components/ZCL/Clusters/General/Source/Alarms.c
         ${SDK_PREFIX}/Components/ZCL/Clusters/General/Source/Basic.c
+        ${SDK_PREFIX}/Components/ZCL/Clusters/General/Source/PowerConfiguration.c
         ${SDK_PREFIX}/Components/ZCL/Clusters/General/Source/BasicClientCommands.c
         ${SDK_PREFIX}/Components/ZCL/Clusters/General/Source/BasicCommandHandler.c
         ${SDK_PREFIX}/Components/ZCL/Clusters/General/Source/Identify.c
@@ -171,6 +177,7 @@ SET(SOURCES
         DeferredExecutor.cpp
         DumpFunctions.cpp
         Endpoint.cpp
+        NwkBtnHandler.cpp
         SwitchEndpoint.cpp
         EndpointManager.cpp
         ZigbeeUtils.cpp

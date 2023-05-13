@@ -13,9 +13,11 @@ extern "C"
 }
 
 #include "Endpoint.h"
-#include "BlinkTask.h"
+// #include "BlinkTask.h"
 #include "ButtonHandler.h"
-
+#ifdef NWK_BTN
+#include "NwkBtnHandler.h"
+#endif
 // List of cluster instances (descriptor objects) that are included into the endpoint
 struct OnOffClusterInstances
 {
@@ -40,12 +42,18 @@ protected:
     tsCLD_LevelControlClient sLevelControlClientCluster;
     tsCLD_LevelControlCustomDataStructure sLevelControlClientCustomDataStructure;
 
-    BlinkTask blinkTask;
+
+    // BlinkTask blinkTask;
     ButtonHandler buttonHandler;
+    #ifdef NWK_BTN
+    NwkBtnHandler nwkBtnHandler;
+    #endif
 
 public:
     SwitchEndpoint();
-    void setPins(uint8 ledPin, uint32 pinMask);
+    uint8 ledPin;
+    void setPins(uint8 ledPin, uint32 pinMask1);
+    void setPins(uint8 ledPin, uint32 pinMask1, uint32 pinMask2);
     virtual void init();
 
     bool getState() const;

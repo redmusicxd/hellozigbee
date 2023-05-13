@@ -79,8 +79,12 @@ void ButtonHandler::changeState(ButtonState state)
     DBG_vPrintf(TRUE, "Switching button %d state to %s\n", endpoint->getEndpointId(), getStateName(state));
 }
 
-void ButtonHandler::buttonStateMachineToggle(bool pressed)
+void ButtonHandler::buttonStateMachineToggle(bool pressed, uint32 ledPin)
 {
+    uint32 ledPinMask = 1UL << ledPin;
+    #ifdef LED2
+    uint32 ledPinMask2 = 1UL << (ledPin + 1);
+    #endif
     // The state machine
     switch(currentState)
     {
@@ -88,6 +92,12 @@ void ButtonHandler::buttonStateMachineToggle(bool pressed)
             if(pressed)
             {
                 changeState(PRESSED1);
+                #ifdef BLINK_SWITCH_LED
+                vAHI_DioSetOutput(0, ledPinMask);
+                #endif
+                #ifdef LED2
+                vAHI_DioSetOutput(0, ledPinMask2);
+                #endif
                 endpoint->reportAction(BUTTON_ACTION_SINGLE);
 
                 if(relayMode != RELAY_MODE_UNLINKED)
@@ -98,11 +108,22 @@ void ButtonHandler::buttonStateMachineToggle(bool pressed)
         case PRESSED1:
             if(!pressed)
                 changeState(IDLE);
-
+                #ifdef BLINK_SWITCH_LED
+                vAHI_DioSetOutput(ledPinMask, 0);
+                #endif
+                #ifdef LED2
+                vAHI_DioSetOutput(ledPinMask2, 0);
+                #endif
             break;
 
         default:
             changeState(IDLE);  // How did we get here?
+            #ifdef BLINK_SWITCH_LED
+            vAHI_DioSetOutput(ledPinMask, 0);
+            #endif
+            #ifdef LED2
+            vAHI_DioSetOutput(ledPinMask2, 0);
+            #endif
             break;
     }
 }
@@ -247,7 +268,7 @@ void ButtonHandler::buttonStateMachineMultistate(bool pressed)
     }
 }
 
-void ButtonHandler::handleButtonState(bool pressed)
+void ButtonHandler::handleButtonState(bool pressed, uint32 ledPin)
 {
     // Let at least 20ms to stabilize button value, do not make any early decisions
     // When button state is stabilized - go through the corresponding state machine
@@ -258,7 +279,7 @@ void ButtonHandler::handleButtonState(bool pressed)
     switch(switchMode)
     {
     case SWITCH_MODE_TOGGLE:
-        buttonStateMachineToggle(pressed);
+        buttonStateMachineToggle(pressed, ledPin);
         break;
     case SWITCH_MODE_MOMENTARY:
         buttonStateMachineMomentary(pressed);

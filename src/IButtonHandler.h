@@ -9,7 +9,7 @@ class IButtonHandler
 {
 public:
 	// Executed by ButtonsTask every ButtonPollCycle ms for every handler
-	virtual void handleButtonState(bool pressed) = 0;
+	virtual void handleButtonState(bool pressed, uint32 ledPin) = 0;
 	virtual void resetButtonStateMachine() = 0;
 };
 

@@ -25,6 +25,8 @@ class ButtonHandler: public IButtonHandler
 
     uint32 currentStateDuration;
 
+    uint32 ledPin;
+
     SwitchMode switchMode;
     RelayMode relayMode;
     uint16 maxPause;
@@ -54,11 +56,11 @@ public:
     void setMinLongPress(uint16 value);
 
 protected:
-    virtual void handleButtonState(bool pressed);
+    virtual void handleButtonState(bool pressed, uint32 ledPin);
     virtual void resetButtonStateMachine();
 
     virtual void changeState(ButtonState state);
-    virtual void buttonStateMachineToggle(bool pressed);
+    virtual void buttonStateMachineToggle(bool pressed, uint32 ledPin);
     virtual void buttonStateMachineMomentary(bool pressed);
     virtual void buttonStateMachineMultistate(bool pressed);
     void sendButtonEvent(ApplicationEventType evtType);

@@ -1,23 +1,23 @@
 #include "ZigbeeDevice.h"
 #include "DumpFunctions.h"
 #include "Queue.h"
+#include "SwitchEndpoint.h"
 
 extern "C"
 {
-    #include "jendefs.h"
+#include "jendefs.h"
 
-    // Local configuration and generated files
-    #include "zps_gen.h"
-    #include "pdum_gen.h"
+// Local configuration and generated files
+#include "zps_gen.h"
+#include "pdum_gen.h"
 
-    // ZigBee includes
-    #include "zps_apl.h"
-    #include "zps_apl_af.h"
-    #include "bdb_api.h"
-    #include "dbg.h"
-    #include "OnOff.h"
+// ZigBee includes
+#include "zps_apl.h"
+#include "zps_apl_af.h"
+#include "bdb_api.h"
+#include "dbg.h"
+#include "OnOff.h"
 }
-
 
 extern PUBLIC tszQueue zps_msgMlmeDcfmInd;
 extern PUBLIC tszQueue zps_msgMcpsDcfmInd;
@@ -57,7 +57,7 @@ ZigbeeDevice::ZigbeeDevice()
     rejoinFailures = 0;
 }
 
-ZigbeeDevice * ZigbeeDevice::getInstance()
+ZigbeeDevice *ZigbeeDevice::getInstance()
 {
     static ZigbeeDevice instance;
     return &instance;
@@ -100,17 +100,17 @@ void ZigbeeDevice::leaveNetwork()
     connectionState = NOT_JOINED;
     rejoinFailures = 0;
 
-    if (ZPS_E_SUCCESS !=  ZPS_eAplZdoLeaveNetwork(0, FALSE, FALSE))
+    if (ZPS_E_SUCCESS != ZPS_eAplZdoLeaveNetwork(0, FALSE, FALSE))
     {
         // Leave failed, probably lost parent, so just reset everything
         DBG_vPrintf(TRUE, "== Failed to properly leave the network. Force leaving the network\n");
         handleLeaveNetwork();
-     }
+    }
 }
 
 void ZigbeeDevice::joinOrLeaveNetwork()
 {
-    if(connectionState == JOINED)
+    if (connectionState == JOINED)
         leaveNetwork();
     else
         joinNetwork();
@@ -119,6 +119,10 @@ void ZigbeeDevice::joinOrLeaveNetwork()
 bool ZigbeeDevice::isJoined()
 {
     return connectionState == JOINED;
+}
+bool ZigbeeDevice::isLeft()
+{
+    return connectionState == NOT_JOINED;
 }
 
 void ZigbeeDevice::handleNetworkJoinAndRejoin()
@@ -132,8 +136,10 @@ void ZigbeeDevice::handleNetworkJoinAndRejoin()
     ZPS_vSaveAllZpsRecords();
 
     // Get ready for network communication
-    if(ZPS_eAplZdoGetDeviceType() == ZPS_ZDO_DEVICE_ENDDEVICE)
+    if (ZPS_eAplZdoGetDeviceType() == ZPS_ZDO_DEVICE_ENDDEVICE){
         pollTask.startPoll(2000);
+        reportBattery();
+    }
     rejoinFailures = 0;
 }
 
@@ -146,7 +152,7 @@ void ZigbeeDevice::handleLeaveNetwork()
     pollTask.stopPoll();
 
     // Clear ZigBee stack internals
-    ZPS_eAplAibSetApsUseExtendedPanId (0);
+    ZPS_eAplAibSetApsUseExtendedPanId(0);
     ZPS_vDefaultStack();
     ZPS_vSetKeys();
     ZPS_vSaveAllZpsRecords();
@@ -157,7 +163,7 @@ void ZigbeeDevice::handleRejoinFailure()
     DBG_vPrintf(TRUE, "== Failed to (re)join the network\n");
     polling = false;
 
-    if(connectionState == JOINED && ++rejoinFailures < 5)
+    if (connectionState == JOINED && ++rejoinFailures < 5)
     {
         DBG_vPrintf(TRUE, "  Rejoin counter %d\n", rejoinFailures);
 
@@ -168,46 +174,47 @@ void ZigbeeDevice::handleRejoinFailure()
         handleLeaveNetwork();
 }
 
-void ZigbeeDevice::handlePollResponse(ZPS_tsAfPollConfEvent* pEvent)
+void ZigbeeDevice::handlePollResponse(ZPS_tsAfPollConfEvent *pEvent)
 {
     switch (pEvent->u8Status)
     {
-        case MAC_ENUM_SUCCESS:
-        case MAC_ENUM_NO_ACK:
-            pollParent();
-            break;
+    case MAC_ENUM_SUCCESS:
+    case MAC_ENUM_NO_ACK:
+        pollParent();
+        break;
 
-        case MAC_ENUM_NO_DATA:
-            polling = false;
-        default:
-            break;
+    case MAC_ENUM_NO_DATA:
+        polling = false;
+        pollTask.stopPoll();
+    default:
+        break;
     }
 }
 
-void ZigbeeDevice::handleZdoDataIndication(ZPS_tsAfEvent * pEvent)
+void ZigbeeDevice::handleZdoDataIndication(ZPS_tsAfEvent *pEvent)
 {
     ZPS_tsAfZdpEvent zdpEvent;
 
-    switch(pEvent->uEvent.sApsDataIndEvent.u16ClusterId)
+    switch (pEvent->uEvent.sApsDataIndEvent.u16ClusterId)
     {
-        case ZPS_ZDP_ACTIVE_EP_RSP_CLUSTER_ID:
+    case ZPS_ZDP_ACTIVE_EP_RSP_CLUSTER_ID:
+    {
+        bool res = zps_bAplZdpUnpackActiveEpResponse(pEvent, &zdpEvent);
+        DBG_vPrintf(TRUE, "Unpacking Active Endpoint Response: Status: %02x res:%02x\n", zdpEvent.uZdpData.sActiveEpRsp.u8Status, res);
+        for (uint8 i = 0; i < zdpEvent.uZdpData.sActiveEpRsp.u8ActiveEpCount; i++)
         {
-            bool res = zps_bAplZdpUnpackActiveEpResponse(pEvent, &zdpEvent);
-            DBG_vPrintf(TRUE, "Unpacking Active Endpoint Response: Status: %02x res:%02x\n", zdpEvent.uZdpData.sActiveEpRsp.u8Status, res);
-            for(uint8 i=0; i<zdpEvent.uZdpData.sActiveEpRsp.u8ActiveEpCount; i++)
-            {
-                uint8 ep = zdpEvent.uLists.au8Data[i];
-                DBG_vPrintf(TRUE, "Scheduling simple descriptor request for EP %d\n", ep);
+            uint8 ep = zdpEvent.uLists.au8Data[i];
+            DBG_vPrintf(TRUE, "Scheduling simple descriptor request for EP %d\n", ep);
 
-                //deferredExecutor.runLater(1000, vSendSimpleDescriptorReq, ep);
-            }
+            // deferredExecutor.runLater(1000, vSendSimpleDescriptorReq, ep);
         }
+    }
     }
 }
 
-void ZigbeeDevice::handleZdoBindUnbindEvent(ZPS_tsAfZdoBindEvent * pEvent, bool bind)
+void ZigbeeDevice::handleZdoBindUnbindEvent(ZPS_tsAfZdoBindEvent *pEvent, bool bind)
 {
-    if(!bind)
+    if (!bind)
         return;
 
     // Address of interest
@@ -215,20 +222,20 @@ void ZigbeeDevice::handleZdoBindUnbindEvent(ZPS_tsAfZdoBindEvent * pEvent, bool 
 
     // Target addr (Broadcast)
     ZPS_tuAddress uDstAddr;
-    uDstAddr.u16Addr = 0xFFFF;   // Broadcast
+    uDstAddr.u16Addr = 0xFFFF; // Broadcast
 
     // Perform the request
     uint8 u8SeqNumber;
     PDUM_thAPduInstance hAPduInst = PDUM_hAPduAllocateAPduInstance(apduZDP);
     ZPS_teStatus status = ZPS_eAplZdpNwkAddrRequest(hAPduInst,
-                                                    uDstAddr,     // Broadcast addr
+                                                    uDstAddr, // Broadcast addr
                                                     FALSE,
                                                     &u8SeqNumber,
                                                     &req);
     DBG_vPrintf(TRUE, "ZigbeeDevice::handleZdoBindUnbindEvent(): looking for network addr for %016llx. Status=%02x\n", pEvent->uDstAddr.u64Addr, status);
 }
 
-void ZigbeeDevice::handleZclEvents(ZPS_tsAfEvent* psStackEvent)
+void ZigbeeDevice::handleZclEvents(ZPS_tsAfEvent *psStackEvent)
 {
     tsZCL_CallBackEvent sCallBackEvent;
     sCallBackEvent.pZPSevent = psStackEvent;
@@ -236,44 +243,44 @@ void ZigbeeDevice::handleZclEvents(ZPS_tsAfEvent* psStackEvent)
     vZCL_EventHandler(&sCallBackEvent);
 }
 
-void ZigbeeDevice::handleZdoEvents(ZPS_tsAfEvent* psStackEvent)
+void ZigbeeDevice::handleZdoEvents(ZPS_tsAfEvent *psStackEvent)
 {
-    if(connectionState != JOINED)
+    if (connectionState != JOINED)
     {
         DBG_vPrintf(TRUE, "Handle ZDO event: Not joined yet. Discarding event %d\n", psStackEvent->eType);
         return;
     }
 
-    switch(psStackEvent->eType)
+    switch (psStackEvent->eType)
     {
-        case ZPS_EVENT_APS_DATA_INDICATION:
-            handleZdoDataIndication(psStackEvent);
-            break;
+    case ZPS_EVENT_APS_DATA_INDICATION:
+        handleZdoDataIndication(psStackEvent);
+        break;
 
-        case ZPS_EVENT_NWK_LEAVE_INDICATION:
-            if(psStackEvent->uEvent.sNwkLeaveIndicationEvent.u64ExtAddr == 0)
-                handleLeaveNetwork();
-            break;
-
-        case ZPS_EVENT_NWK_LEAVE_CONFIRM:
+    case ZPS_EVENT_NWK_LEAVE_INDICATION:
+        if (psStackEvent->uEvent.sNwkLeaveIndicationEvent.u64ExtAddr == 0)
             handleLeaveNetwork();
-            break;
+        break;
 
-        case ZPS_EVENT_ZDO_BIND:
-            handleZdoBindUnbindEvent(&psStackEvent->uEvent.sZdoBindEvent, true);
-            break;
+    case ZPS_EVENT_NWK_LEAVE_CONFIRM:
+        handleLeaveNetwork();
+        break;
 
-        case ZPS_EVENT_ZDO_UNBIND:
-            handleZdoBindUnbindEvent(&psStackEvent->uEvent.sZdoBindEvent, false);
-            break;
+    case ZPS_EVENT_ZDO_BIND:
+        handleZdoBindUnbindEvent(&psStackEvent->uEvent.sZdoBindEvent, true);
+        break;
 
-        case ZPS_EVENT_NWK_POLL_CONFIRM:
-            handlePollResponse(&psStackEvent->uEvent.sNwkPollConfirmEvent);
-            break;
+    case ZPS_EVENT_ZDO_UNBIND:
+        handleZdoBindUnbindEvent(&psStackEvent->uEvent.sZdoBindEvent, false);
+        break;
 
-        default:
-            //DBG_vPrintf(TRUE, "Handle ZDO event: event type %d\n", psStackEvent->eType);
-            break;
+    case ZPS_EVENT_NWK_POLL_CONFIRM:
+        handlePollResponse(&psStackEvent->uEvent.sNwkPollConfirmEvent);
+        break;
+
+    default:
+        // DBG_vPrintf(TRUE, "Handle ZDO event: event type %d\n", psStackEvent->eType);
+        break;
     }
 }
 
@@ -282,12 +289,12 @@ void ZigbeeDevice::handleAfEvent(BDB_tsZpsAfEvent *psZpsAfEvent)
     // Dump the event for debug purposes
     vDumpAfEvent(&psZpsAfEvent->sStackEvent);
 
-    if(psZpsAfEvent->u8EndPoint == HELLOENDDEVICE_ZDO_ENDPOINT)
+    if (psZpsAfEvent->u8EndPoint == HELLOENDDEVICE_ZDO_ENDPOINT)
     {
         // events for ep 0
         handleZdoEvents(&psZpsAfEvent->sStackEvent);
     }
-    else if(psZpsAfEvent->sStackEvent.eType == ZPS_EVENT_APS_DATA_INDICATION)
+    else if (psZpsAfEvent->sStackEvent.eType == ZPS_EVENT_APS_DATA_INDICATION)
     {
         handleZclEvents(&psZpsAfEvent->sStackEvent);
     }
@@ -298,53 +305,53 @@ void ZigbeeDevice::handleAfEvent(BDB_tsZpsAfEvent *psZpsAfEvent)
     }
 
     // Ensure Freeing of APDUs
-    if(psZpsAfEvent->sStackEvent.eType == ZPS_EVENT_APS_DATA_INDICATION)
+    if (psZpsAfEvent->sStackEvent.eType == ZPS_EVENT_APS_DATA_INDICATION)
         PDUM_eAPduFreeAPduInstance(psZpsAfEvent->sStackEvent.uEvent.sApsDataIndEvent.hAPduInst);
 }
 
 void ZigbeeDevice::handleBdbEvent(BDB_tsBdbEvent *psBdbEvent)
 {
-    switch(psBdbEvent->eEventType)
+    switch (psBdbEvent->eEventType)
     {
-        case BDB_EVENT_ZPSAF:
-            handleAfEvent(&psBdbEvent->uEventData.sZpsAfEvent);
-            break;
+    case BDB_EVENT_ZPSAF:
+        handleAfEvent(&psBdbEvent->uEventData.sZpsAfEvent);
+        break;
 
-        case BDB_EVENT_INIT_SUCCESS:
-            DBG_vPrintf(TRUE, "BDB event callback: BDB Init Successful\n");
-            break;
+    case BDB_EVENT_INIT_SUCCESS:
+        DBG_vPrintf(TRUE, "BDB event callback: BDB Init Successful\n");
+        break;
 
-        case BDB_EVENT_REJOIN_SUCCESS:
-            DBG_vPrintf(TRUE, "BDB event callback: Network Join Successful\n");
-            handleNetworkJoinAndRejoin();
-            break;
+    case BDB_EVENT_REJOIN_SUCCESS:
+        DBG_vPrintf(TRUE, "BDB event callback: Network Join Successful\n");
+        handleNetworkJoinAndRejoin();
+        break;
 
-        case BDB_EVENT_REJOIN_FAILURE:
-            DBG_vPrintf(TRUE, "BDB event callback: Failed to rejoin\n");
-            handleRejoinFailure();
-            break;
+    case BDB_EVENT_REJOIN_FAILURE:
+        DBG_vPrintf(TRUE, "BDB event callback: Failed to rejoin\n");
+        handleRejoinFailure();
+        break;
 
-        case BDB_EVENT_NWK_STEERING_SUCCESS:
-            DBG_vPrintf(TRUE, "BDB event callback: Network steering success\n");
-            handleNetworkJoinAndRejoin();
-            break;
+    case BDB_EVENT_NWK_STEERING_SUCCESS:
+        DBG_vPrintf(TRUE, "BDB event callback: Network steering success\n");
+        handleNetworkJoinAndRejoin();
+        break;
 
-        case BDB_EVENT_NO_NETWORK:
-            DBG_vPrintf(TRUE, "BDB event callback: No good network to join\n");
-            handleRejoinFailure();
-            break;
+    case BDB_EVENT_NO_NETWORK:
+        DBG_vPrintf(TRUE, "BDB event callback: No good network to join\n");
+        handleRejoinFailure();
+        break;
 
-        case BDB_EVENT_FAILURE_RECOVERY_FOR_REJOIN:
-            DBG_vPrintf(TRUE, "BDB event callback: Failure recovery for rejoin\n");
-            break;
+    case BDB_EVENT_FAILURE_RECOVERY_FOR_REJOIN:
+        DBG_vPrintf(TRUE, "BDB event callback: Failure recovery for rejoin\n");
+        break;
 
-        default:
-            DBG_vPrintf(1, "BDB event callback: evt %d\n", psBdbEvent->eEventType);
-            break;
+    default:
+        DBG_vPrintf(1, "BDB event callback: evt %d\n", psBdbEvent->eEventType);
+        break;
     }
 }
 
-PUBLIC void APP_vBdbCallback(BDB_tsBdbEvent * event)
+PUBLIC void APP_vBdbCallback(BDB_tsBdbEvent *event)
 {
     ZigbeeDevice::getInstance()->handleBdbEvent(event);
 }
@@ -354,7 +361,7 @@ void ZigbeeDevice::pollParent()
     // Sleeping devices have to poll their parents, while routers always keep the receiver on
     // Note: this condition should check sleeping/non-sleeping device criteria, rather than device type.
     //       Perhaps even end device may be a non-sleeping device, and therefore not require polling.
-    if(ZPS_eAplZdoGetDeviceType() != ZPS_ZDO_DEVICE_ENDDEVICE)
+    if (ZPS_eAplZdoGetDeviceType() != ZPS_ZDO_DEVICE_ENDDEVICE)
         return;
 
     polling = true;
@@ -367,7 +374,7 @@ bool ZigbeeDevice::canSleep() const
     // It is assumed that only end devices can sleep.
     // Note: this condition should check sleeping/non-sleeping device criteria, rather than device type.
     //       Perhaps even end device may be a non-sleeping device, and therefore not require polling.
-    if(ZPS_eAplZdoGetDeviceType() != ZPS_ZDO_DEVICE_ENDDEVICE)
+    if (ZPS_eAplZdoGetDeviceType() != ZPS_ZDO_DEVICE_ENDDEVICE)
         return false;
 
     // End device may sleep if they are not polling the parent right now
@@ -381,16 +388,93 @@ bool ZigbeeDevice::needsRejoin() const
     return rejoinFailures > 0 && connectionState == JOINED;
 }
 
+void ZigbeeDevice::pwrCfg(tsCLD_PowerConfiguration *psPowerConfigServerCluster)
+{
+    sPowerConfigServerCluster = psPowerConfigServerCluster;
+}
+
+void ZigbeeDevice::reportBattery()
+{
+    if(!isJoined()){
+        return;
+    }
+    // Destination address - 0x0000 (coordinator)
+    tsZCL_Address addr;
+    addr.uAddress.u16DestinationAddress = 0x0000;
+    addr.eAddressMode = E_ZCL_AM_SHORT;
+
+    // uint16 u16BattVoltage;
+
+    uint16 voltageMin = 2750;
+    uint16 voltageMax = 3000;
+    /* General ADC initialisation */
+    vAHI_ApConfigure(E_AHI_AP_REGULATOR_ENABLE,
+                     E_AHI_AP_INT_DISABLE,
+                     E_AHI_AP_SAMPLE_2,
+                     E_AHI_AP_CLOCKDIV_500KHZ,
+                     E_AHI_AP_INTREF);
+
+    /* Wait for ADC to power up */
+    while (!bAHI_APRegulatorEnabled())
+        ;
+    vAHI_AdcEnable(E_AHI_ADC_SINGLE_SHOT, E_AHI_AP_INPUT_RANGE_2,
+                   E_AHI_ADC_SRC_VOLT);
+
+    /* Start ADC sampling */
+    vAHI_AdcStartSample();
+    while (bAHI_AdcPoll())
+    {
+    };
+    vAHI_AdcDisable();
+    uint16 u16AdcReading = u16AHI_AdcRead();
+    uint32 u32Temp = ((uint32)u16AdcReading * 7410);
+    uint16 u16BattLevelmV = (u32Temp >> 11);
+    // DBG_vPrintf(TRUE, "Reporting Battery Level value=%d... ", u16BattLevelmV);
+    // DBG_vPrintf(TRUE, "Reporting Battery Level value=%d... ", u16BattVoltage);
+
+    uint16 tempVoltage = u16BattLevelmV;
+
+    if (u16BattLevelmV > voltageMax)
+        tempVoltage = voltageMax;
+    else if (u16BattLevelmV < voltageMin)
+        tempVoltage = voltageMin;
+
+    uint8 normalisedPercentage = (tempVoltage - voltageMin) / (voltageMax - voltageMin);
+    DBG_vPrintf(TRUE, "Current batteryVoltage EP=%d value=%d... \n", 1, sPowerConfigServerCluster->u8BatteryVoltage);
+    DBG_vPrintf(TRUE, "Measured batteryVoltage EP=%d value=%d... \n", 1, u16BattLevelmV);
+    if (sPowerConfigServerCluster->u8BatteryVoltage >= u16BattLevelmV && (sPowerConfigServerCluster->u8BatteryVoltage - u16BattLevelmV) <= 50)
+    {
+        return;
+    }
+    else if (u16BattLevelmV >= sPowerConfigServerCluster->u8BatteryVoltage && (u16BattLevelmV - sPowerConfigServerCluster->u8BatteryVoltage) <= 50)
+    {
+        return;
+    }
+    sPowerConfigServerCluster->u8BatteryVoltage = u16BattLevelmV;
+    sPowerConfigServerCluster->u8BatteryPercentageRemaining = (uint8)(normalisedPercentage * 100);
+    DBG_vPrintf(TRUE, "Reporting attribute batteryVoltage EP=%d value=%d... \n", 1, sPowerConfigServerCluster->u8BatteryVoltage);
+    DBG_vPrintf(TRUE, "Reporting attribute batteryPercentageRemaining EP=%d value=%d... \n", 1, sPowerConfigServerCluster->u8BatteryPercentageRemaining);
+    PDUM_thAPduInstance myPDUM_thAPduInstance = hZCL_AllocateAPduInstance();
+
+    teZCL_Status status2 = eZCL_ReportAllAttributes(&addr,
+                                                    GENERAL_CLUSTER_ID_POWER_CONFIGURATION,
+                                                    1,
+                                                    1,
+                                                    myPDUM_thAPduInstance);
+    PDUM_eAPduFreeAPduInstance(myPDUM_thAPduInstance);
+    DBG_vPrintf(TRUE, "status2: %02x\n", status2);
+}
+
 void ZigbeeDevice::handleWakeUp()
 {
-    if(connectionState != JOINED)
+    if (connectionState != JOINED)
         return;
 
-    if(needsRejoin())
+    if (needsRejoin())
     {
         // Device that is basically connected, but currently needs a rejoin will have to
         // sleep a few cycles between rejoin attempts
-        if(cyclesTillNextRejoin-- > 0)
+        if (cyclesTillNextRejoin-- > 0)
         {
             DBG_vPrintf(TRUE, "ZigbeeDevice: Rejoining in %d cycles\n", cyclesTillNextRejoin);
             return;
@@ -399,6 +483,7 @@ void ZigbeeDevice::handleWakeUp()
         rejoinNetwork();
     }
     else
+        reportBattery();
         // Connected device will just poll its parent on wake up
         pollParent();
 }

@@ -22,15 +22,18 @@ extern "C"
 #include "ZigbeeDevice.h"
 #include "ZCLTimer.h"
 
-const uint8 SWITCH1_LED_PIN = 17;
-const uint8 SWITCH2_LED_PIN = 12;
+const uint8 SWITCH1_LED_PIN = 11;
 
-const uint8 SWITCH1_BTN_BIT = 1;
+const uint8 SWITCH1_BTN_BIT = 16;
 const uint32 SWITCH1_BTN_MASK = 1UL << SWITCH1_BTN_BIT;
-const uint8 SWITCH2_BTN_BIT = 3;
-const uint32 SWITCH2_BTN_MASK = 1UL << SWITCH2_BTN_BIT;
+#ifdef NWK_BTN
+    const uint8 SWITCH_NWK_BTN_BIT = 0;
+    const uint32 SWITCH_NWK_BTN_MASK = 1UL << SWITCH_NWK_BTN_BIT;
+#endif
+#ifdef LED2
+    const uint8 SWITCH1_LED2_PIN = 11;
 
-
+#endif
 DeferredExecutor deferredExecutor;
 
 // Hidden funcctions (exported from the library, but not mentioned in header files)
@@ -49,14 +52,13 @@ extern "C"
 // - 1 in DeferredExecutor (TODO: Do we still need it?)
 // - 1 is ZCL timer
 // Note: if not enough space in this timers array, some of the functions (e.g. network joining) may not work properly
-ZTIMER_tsTimer timers[6 + BDB_ZTIMER_STORAGE];
+ZTIMER_tsTimer timers[7 + BDB_ZTIMER_STORAGE];
 
 
 struct Context
 {
     BasicClusterEndpoint basicEndpoint;
     SwitchEndpoint switch1;
-    SwitchEndpoint switch2;
 };
 
 
@@ -146,6 +148,10 @@ PRIVATE void vSendSimpleDescriptorReq(uint8 ep)
 }
 #endif //0
 
+// PUBLIC void vException_StackOverflow(void){
+//     bAHI_WatchdogResetEvent();
+// }
+
 PUBLIC void wakeCallBack(void)
 {
     DBG_vPrintf(TRUE, "=-=-=- wakeCallBack()\n");
@@ -163,12 +169,12 @@ PRIVATE void APP_vTaskSwitch(Context * context)
             ZigbeeDevice::getInstance()->joinOrLeaveNetwork();
         }
     }
-
+    // DBG_vPrintf(TRUE, "Button Task canSleep=%d, ZigbeeDevice canSleep=%d\n", ButtonsTask::getInstance()->canSleep(), ZigbeeDevice::getInstance()->canSleep());
     if(ButtonsTask::getInstance()->canSleep() &&
        ZigbeeDevice::getInstance()->canSleep())
     {
         static pwrm_tsWakeTimerEvent wakeStruct;
-        PWRM_teStatus status = PWRM_eScheduleActivity(&wakeStruct, 15 * 32000, wakeCallBack);
+        PWRM_teStatus status = PWRM_eScheduleActivity(&wakeStruct, 60 * 32000, wakeCallBack);
         if(status != PWRM_E_TIMER_RUNNING)
             DBG_vPrintf(TRUE, "=-=-=- Scheduling enter sleep mode... status=%d\n", status);
     }
@@ -203,6 +209,8 @@ extern "C" PUBLIC void vAppMain(void)
     DBG_vPrintf(TRUE, "vAppMain(): init software timers...\n");
     ZTIMER_eInit(timers, sizeof(timers) / sizeof(ZTIMER_tsTimer));
 
+    // vAHI_WatchdogException(true);
+
     // Init tasks
     DBG_vPrintf(TRUE, "vAppMain(): init tasks...\n");
     ButtonsTask::getInstance();
@@ -224,14 +232,19 @@ extern "C" PUBLIC void vAppMain(void)
 
     DBG_vPrintf(TRUE, "vAppMain(): Registering endpoint objects\n");
     Context context;
-    context.switch1.setPins(SWITCH1_LED_PIN, SWITCH1_BTN_MASK);
-    context.switch2.setPins(SWITCH2_LED_PIN, SWITCH2_BTN_MASK);
+    #ifdef NWK_BTN
+        context.switch1.setPins(SWITCH1_LED_PIN, SWITCH1_BTN_MASK, SWITCH_NWK_BTN_MASK);
+    #else
+        context.switch1.setPins(SWITCH1_LED_PIN, SWITCH1_BTN_MASK);
+    #endif
+    // context.basicEndpoint.setBatteryTimer();
+    // context.sPowerConfigServerCluster = context.basicEndpoint.getPwrInstance();
     EndpointManager::getInstance()->registerEndpoint(HELLOENDDEVICE_BASIC_ENDPOINT, &context.basicEndpoint);
     EndpointManager::getInstance()->registerEndpoint(HELLOENDDEVICE_SWITCH1_ENDPOINT, &context.switch1);
-    EndpointManager::getInstance()->registerEndpoint(HELLOENDDEVICE_SWITCH2_ENDPOINT, &context.switch2);
 
     // Start ZigbeeDevice and rejoin the network (if was joined)
     ZigbeeDevice::getInstance()->rejoinNetwork();
+    ZigbeeDevice::getInstance()->pwrCfg(context.basicEndpoint.getPwrInstance());
 
     DBG_vPrintf(TRUE, "vAppMain(): Starting the main loop\n");
     while(1)
@@ -297,6 +310,7 @@ PWRM_CALLBACK(Wakeup)
 
     // Poll the parent router for zigbee messages
     ZigbeeDevice::getInstance()->handleWakeUp();
+
 }
 
 extern "C" void vAppRegisterPWRMCallbacks(void)

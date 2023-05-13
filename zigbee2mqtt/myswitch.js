@@ -271,12 +271,38 @@ const MyOta = {
     }
 }
 
+const fz_battery = {
+        cluster: 'genPowerCfg',
+        type: ['attributeReport', 'readResponse'],
+        convert: (model, msg, publish, options, meta) => {
+            const payload = {};
+
+            if (msg.data.hasOwnProperty('batteryVoltage')) {
+                // Deprecated: voltage is = mV now but should be V
+                payload.voltage = msg.data['batteryVoltage'];
+
+                if (model.meta && model.meta.battery && model.meta.battery.voltageToPercentage) {
+                    payload.battery = utils.batteryVoltageToPercentage(payload.voltage, model.meta.battery.voltageToPercentage);
+                }
+            }
+
+            if (msg.data.hasOwnProperty('batteryAlarmState')) {
+                const battery1Low = (msg.data.batteryAlarmState & 1<<0) > 0;
+                const battery2Low = (msg.data.batteryAlarmState & 1<<9) > 0;
+                const battery3Low = (msg.data.batteryAlarmState & 1<<19) > 0;
+                payload.battery_low = battery1Low || battery2Low || battery3Low;
+            }
+
+            return payload;
+        },
+    }
+
 const device = {
     zigbeeModel: ['Hello Zigbee Switch'],
     model: 'Hello Zigbee Switch',
     vendor: 'NXP',
     description: 'Hello Zigbee Switch',
-    fromZigbee: [fz.on_off, fromZigbee_OnOffSwitchCfg, fromZigbee_MultistateInput],
+    fromZigbee: [fz.on_off, fromZigbee_OnOffSwitchCfg, fz_battery],
     toZigbee: [tz.on_off, toZigbee_OnOffSwitchCfg],
     configure: async (device, coordinatorEndpoint, logger) => {
         device.endpoints.forEach(async (ep) => {
@@ -286,16 +312,17 @@ const device = {
         });
     },
     exposes: [
-        e.action(genSwitchActions(2)),
-        ...genSwitchEndpoints(2)
+        e.action(genSwitchActions(1)),
+        ...genSwitchEndpoints(1),
+	e.battery(),
+	e.battery_voltage()
     ],
     endpoint: (device) => {
         return {
             button_1: 2,
-            button_2: 3
         };
     },
-    meta: {multiEndpoint: true},
+	meta: {multiEndpoint: true, battery:{ voltageToPercentage: "3V_2850_3000"}},
     ota: MyOta
 };
 
