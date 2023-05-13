@@ -423,11 +423,11 @@ def output_header(output_dir, pdumConfig):
 
 
 exeFSP = os.path.abspath(sys.executable)
-if os.name == 'nt':
-    d = win32api.GetFileVersionInfo(exeFSP, '\\')
-    version = '%d.%d.%d' % (d['FileVersionMS'] / 65536, d['FileVersionMS'] % 65536, d['FileVersionLS'] / 65536)
-else:
-    version = 'x.x.x'
+# if os.name == 'nt':
+#     d = win32api.GetFileVersionInfo(exeFSP, '\\')
+#     version = '%d.%d.%d' % (d['FileVersionMS'] / 65536, d['FileVersionMS'] % 65536, d['FileVersionLS'] / 65536)
+# else:
+version = 'x.x.x'
 print('PDUMConfig - PDU Manager Configuration Tool v%s Build %s\n' % (version, '90693'))
 if len(sys.argv) <= 1:
     print(

@@ -11,9 +11,6 @@ extern "C"
     #include "zps_gen.h"
     #include "zps_apl_af.h"
     #include "bdb_api.h"
-
-    // work around of a bug in appZpsBeaconHandler.h that does not have a closing } for its extern "C" statement
-    }
 }
 
 class ZigbeeDevice

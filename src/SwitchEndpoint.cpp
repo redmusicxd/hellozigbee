@@ -82,9 +82,9 @@ void SwitchEndpoint::registerLevelControlClientCluster()
     // Initialize Level Control client cluser
     teZCL_Status status = eCLD_LevelControlCreateLevelControl(&sClusterInstance.sLevelControlClient,
                                                               FALSE,                              // Client
-                                                              &sCLD_LevelControl,
+                                                              &sCLD_LevelControlClient,
                                                               &sLevelControlClientCluster,
-                                                              &au8LevelControlAttributeControlBits[0],
+                                                              &au8LevelControlClientAttributeControlBits[0],
                                                               &sLevelControlClientCustomDataStructure);
     if( status != E_ZCL_SUCCESS)
         DBG_vPrintf(TRUE, "SwitchEndpoint::init(): Failed to create Level Control client cluster instance. status=%d\n", status);

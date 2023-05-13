@@ -5,11 +5,6 @@ extern "C"
     #include "dbg.h"
     #include "zcl_customcommand.h"
     #include "bdb_api.h"
-
-    #ifndef _appZpsBeaconHandler_h_fixed_
-    #define _appZpsBeaconHandler_h_fixed_
-    }// missed '}' in appZpsBeaconHandler.h
-    #endif //_appZpsBeaconHandler_h_fixed_
 }
 
 PRIVATE void vPrintAddr(ZPS_tuAddress addr, uint8 mode)

@@ -2804,12 +2804,12 @@ PATCH_FUNCTIONS = [
     'vHandleUpdateDeviceIndication',
     'vHandleTransportKeyIndication']
 exe_fsp = os.path.abspath(sys.executable)
-if os.name == 'nt':
-    d = win32api.GetFileVersionInfo(exe_fsp, '\\')
-    version = '%d.%d.%d' % (
-        d['FileVersionMS'] / (256 * 256), d['FileVersionMS'] % (256 * 256), d['FileVersionLS'] / (256 * 256))
-else:
-    version = 'x.x.x'
+# if os.name == 'nt':
+#     d = win32api.GetFileVersionInfo(exe_fsp, '\\')
+#     version = '%d.%d.%d' % (
+#         d['FileVersionMS'] / (256 * 256), d['FileVersionMS'] % (256 * 256), d['FileVersionLS'] / (256 * 256))
+# else:
+version = 'x.x.x'
 if '' == options.zigbee_node_name:
     print('ERROR: A node must be specified.\n')
     sys.exit(9)
